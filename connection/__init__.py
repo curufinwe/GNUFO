@@ -46,8 +46,7 @@ def parse():
         elif e.errno == 11:
             pass #This means that there is nothing to read
         else:
-            print e
-            sys.exit(1)
+            raise e
     else:
         while True:
             byte = _buff.read(1)
@@ -75,14 +74,12 @@ def parse():
                         result.append(packet)
                         print packet
                 else:
+                    _conn.close()
                     raise StreamError("Expected header, but got shit!")
             else:
                 _conn.close()
                 raise StreamError("Expected magic byte, but got shit!")
     return result
-
-    def parse(self):
-        connection.parse()
 
 def send(stream):
     _conn.setblocking(1)
@@ -90,8 +87,7 @@ def send(stream):
     _conn.setblocking(0)
 
 def close():
-    #_conn.close()
-    pass
+    _conn.close()
 
 class NetworkPacket(object):
     def __init__(self, name):

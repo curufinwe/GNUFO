@@ -13,6 +13,7 @@ class Protocol(object):
             print e
             if e.errno == 115:
                 #This error means that everything is alright
+                #(Operation now in Progress)
                 self.__setup(gamestatus)
             else:
                 sys.exit()
@@ -20,6 +21,8 @@ class Protocol(object):
             self.__setup(gamestatus)
 
     def __setup(self, gamestatus):
+        if not hasattr(gamestatus, "objects"):
+            gamestatus["objects"] = dict()
         self.gamestatus = gamestatus
         connection.magic_number = '\x21'
         connection.rules = {
@@ -47,8 +50,9 @@ class Protocol(object):
         packet = struct.pack("!B16s16s16s", 0x42, user, serverpw, userpw)
         connection.send(packet)
 
-    def sendMouse(self, position, velocity=(0.0, 0.0)):
-        packet = struct.pack("Bff", 0x44, position[0], position[1])
+    def sendMouse(self, position=(0.0, 0.0), velocity=(0.0, 0.0)):
+        packet = struct.pack("Bffff", 0x44, position[0], position[1],
+                                            velocity[0], velocity[1])
 
     def parse(self):
         list = connection.parse()
@@ -60,29 +64,28 @@ class Protocol(object):
                     print j
             elif i.name.startswith("update"):
                 #check wether the object exists
-                if i.id in self.gamestatus:
-                    updated = self.gamestatus.objects[i]
+                if i.id in self.gamestatus["objects"]:
+                    updated = self.gamestatus["objects"][i.id]
                 elif i.name == "update":
                     #if object does not exist, create it, but only if the data
                     #is complete
-                    updated = self.gamestatus.objects[i] = {}
+                    updated = self.gamestatus["objects"][i.id] = {}
                 else:
                     #Discard the packet and continue processing
                     print i.name, " packet with invalid ID recieved"
                     continue
                 if i.name == "updatePos" or i.name == "update":
-                    updated.pos = (i.posx, i.posy)
-                    updated.vel = (i.velx, i.vely)
+                    updated["pos"] = (i.posx, i.posy)
+                    updated["vel"] = (i.velx, i.vely)
                 if i.name == "updateGfx" or i.name == "update":
-                    updated.gfx = i.gfx
-                    updated.color = (i.colR, i.colG, i.colB)
+                    updated["gfx"] = i.gfx
+                    updated["color"] = (i.colR, i.colG, i.colB)
             elif i.name == "delete":
                 if i.id in self.gamestatus.objects:
-                    del self.gamestatus.objects[i]
+                    del self.gamestatus["objects"][i]
                 else:
                     #The server tries to delete an object that does not exist
-                    #TODO: use stringformatting for this output
-                    print "The object with id " + i.id + "does not exist"
+                    print "The object with id %i does not exist" %(i.id)
             elif i.name == "loginAck":
                 self.gamestatus.status = i.status
             elif i.name == "GTFO":
