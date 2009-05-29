@@ -28,7 +28,7 @@ The index is the package-header value and every entry must be of the form:
 """
 rules = dict()
 magic_number = "\x00"
-buffsize = 8192#65536#32768#16384
+buffsize = 65536#8192#65536#32768#16384
 
 def connected():
     return _connected
