@@ -28,6 +28,7 @@ The index is the package-header value and every entry must be of the form:
 """
 rules = dict()
 magic_number = "\x00"
+buffsize = 8192#65536#32768#16384
 
 def connected():
     return _connected
@@ -39,7 +40,7 @@ def connect(host, port):
 def parse():
     result = []
     try:
-        _buff.append(_conn.recv(1024))
+        _buff.append(_conn.recv(buffsize))
     except socket.error as e:
         if e.errno == 115:
             pass #This error means everything is going alright
@@ -72,7 +73,7 @@ def parse():
                         for i in xrange(len(tuple)):
                             packet.__dict__[rule['processor'][i+1]] = tuple[i]
                         result.append(packet)
-                        print packet
+                        #print packet
                 else:
                     _conn.close()
                     raise StreamError("Expected header, but got shit!")
