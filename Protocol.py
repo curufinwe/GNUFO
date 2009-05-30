@@ -10,7 +10,7 @@ class Protocol(object):
         try:
             connection.connect(serverip, port)
         except socket.error as e:
-            print e
+            #print e
             if e.errno == 115:
                 #This error means that everything is alright
                 #(Operation now in Progress)
@@ -35,7 +35,7 @@ class Protocol(object):
                                     'posy']
                      },
             '\x25' : {'name': 'updateGfx',
-                      'processor': ['HBBBB', 'id', 'gfx', 'colR', 'colG',
+                      'processor': ['=HBBBB', 'id', 'gfx', 'colR', 'colG',
                                     'colB']
                      },
             '\x26' : {'name': 'delete', 'processor' : ['H', 'id']},
@@ -47,12 +47,17 @@ class Protocol(object):
             
 
     def login(self, user, serverpw, userpw):
-        packet = struct.pack("!B16s16s16s", 0x42, user, serverpw, userpw)
+        packet = struct.pack("=B16s16s16s", 0x42, user, serverpw, userpw)
         connection.send(packet)
 
     def sendMouse(self, position=(0.0, 0.0), velocity=(0.0, 0.0)):
-        packet = struct.pack("Bffff", 0x44, position[0], position[1],
+        packet = struct.pack("=Bffff", 0x44, position[0], position[1],
                                             velocity[0], velocity[1])
+        connection.send(packet)
+
+    def sendKeyStatus(self, key, status):
+        packet = struct.pack("=BBB", 0x43, key, status)
+        connection.send(packet)
 
     def parse(self):
         list = connection.parse()
@@ -75,7 +80,7 @@ class Protocol(object):
                     print i.name, " packet with invalid ID recieved"
                     continue
                 if i.name == "updatePos" or i.name == "update":
-                    updated["pos"] = (i.posx, i.posy)
+                    updated["pos"] = [i.posx, i.posy]
                     updated["vel"] = (i.velx, i.vely)
                 if i.name == "updateGfx" or i.name == "update":
                     updated["gfx"] = i.gfx
@@ -90,6 +95,11 @@ class Protocol(object):
                 self.gamestatus.status = i.status
             elif i.name == "GTFO":
                 raise GTFOException()
+
+    def update(self, time):
+        for obj in self.gamestatus["objects"].itervalues():
+            obj["pos"][0] += obj["vel"][0]*time
+            obj["pos"][1] += obj["vel"][1]*time
 
     def __del__(self):
         connection.close()
