@@ -116,16 +116,15 @@ class Protocol(object):
 
 def status(stringbuffer):
     try:
-        packet = connection.NetworPacket('status')
+        packet = connection.NetworkPacket('status')
         packet.strings = []
-        slength = stringbuffer.read(1)
-        length = struct.unpack('B', buffer)[0]
-        while length > 0:
+        sstrings = stringbuffer.read(1)
+        strings = struct.unpack('B', buffer)[0]
+        while strings > 0:
             slength = stringbuffer.read(2)
             length = struct.unpack('H', slength)[0]
-            string = stringbuffer.read(length)
-            buffer += string
-            packet.strings.append(string)
+            packet.strings.append(stringbuffer.read(length))
+            strings -= 1
     except OutOfStreamException as e:
         raise connection.StreamIncompleteException()
     return packet
