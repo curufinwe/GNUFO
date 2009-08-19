@@ -53,15 +53,22 @@ class Protocol(object):
     def sendMouse(self, position=(0.0, 0.0), velocity=(0.0, 0.0)):
         packet = struct.pack("=Bffff", 0x44, position[0], position[1],
                                             velocity[0], velocity[1])
-        connection.send(packet)
+        try:
+            connection.send(packet)
+        except socket.error as e:
+            if e.errno == 32:
+                raise DisconnectException()
 
     def sendKeyStatus(self, key, status):
         packet = struct.pack("=BBB", 0x43, key, status)
-        connection.send(packet)
+        try:
+            connection.send(packet)
+        except:
+            if e.errno == 32:
+                raise DisconnectException()
 
     def parse(self):
-        list = connection.parse()
-        for i in list:
+        for i in connection.parse():
             if i.name == "message":
                 print i.message
             elif i.name == "status":
@@ -86,7 +93,10 @@ class Protocol(object):
                     updated["gfx"] = i.gfx
                     updated["color"] = (i.colR, i.colG, i.colB)
             elif i.name == "delete":
-                if i.id in self.gamestatus.objects:
+                if i.id == 0xffff:
+                    for item in self.gamestatus["objects"].keys():
+                        del self.gamestatus["objects"][item]
+                elif i.id in self.gamestatus["objects"]:
                     del self.gamestatus["objects"][i]
                 else:
                     #The server tries to delete an object that does not exist
@@ -105,37 +115,36 @@ class Protocol(object):
         connection.close()
 
 def status(stringbuffer):
-    packet = connection.NetworPacket('status')
-    packet.strings = []
-    buffer = slength = stringbuffer.read(1)
-    if not len(slength) == 1:
-        raise connection.StreamIncompleteException(slength)
-    length = struct.unpack('B', buffer)[0]
-    while length > 0:
-        slength = stringbuffer.read(2)
-        buffer += slength
-        if not slength == 2:
-            raise connection.StreamIncompleteException(buffer)
-        length = struct.unpack('H', slength)[0]
-        string = stringbuffer.read(length)
-        if len(string) < length:
+    try:
+        packet = connection.NetworPacket('status')
+        packet.strings = []
+        slength = stringbuffer.read(1)
+        length = struct.unpack('B', buffer)[0]
+        while length > 0:
+            slength = stringbuffer.read(2)
+            length = struct.unpack('H', slength)[0]
+            string = stringbuffer.read(length)
             buffer += string
-            raise connection.StreamIncompleteException(buffer)
-        packet.strings.append(string)
+            packet.strings.append(string)
+    except OutOfStreamException as e:
+        raise connection.StreamIncompleteException()
     return packet
 
 def message(stringbuffer):
-    slength = stringbuffer.read(2)
-    if not len(slength) == 2:
-        raise connection.StreamIncompleteException(slength)
-    length = struct.unpack('H', slength)[0]
-    string = stringbuffer.read(length)
-    if len(string) < length:
-        raise connection.StreamIncompleteException(slength+string)
-    packet = connection.NetworkPacket('message')
-    packet.message = string
+    try:
+        slength = stringbuffer.read(2)
+        length = struct.unpack('H', slength)[0]
+        string = stringbuffer.read(length)
+        packet = connection.NetworkPacket('message')
+        packet.message = string
+    except OutOfStreamException as e:
+        raise connection.StreamIncompleteException()
     return packet
 
 class GTFOException(Exception):
     def __str__(self):
         return "GoD says: GTFO!!1!!"
+
+class DisconnectException(Exception):
+    def __str__(self):
+        return "Disconnected from the server"

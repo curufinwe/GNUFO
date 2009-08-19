@@ -13,7 +13,7 @@ def main():
     running = True
     gamestatus = {}
     try:
-        p = Protocol("127.0.0.1", 1337, gamestatus)
+        p = Protocol("localhost", 1337, gamestatus)
         p.login("me", "foo", "bar")
     except socket.error as e:
         if e.errno == 111: #Connection refused
@@ -28,6 +28,7 @@ def main():
     lst_mv = [0.0, 0.0]
     diff = [0.0, 0.0]
     max_diff = [0.1, 0.1]
+    screenpos = [0.0, 0.0]
 
     keytable = {K_j: 0x1, K_k: 0x2}
     keystatustable = {KEYDOWN: 0x1, KEYUP: 0x0}
@@ -44,7 +45,6 @@ def main():
             if event.type == QUIT:
                 running = False
             if event.type == KEYDOWN or event.type == KEYUP:
-                print event.key
                 if event.key == K_ESCAPE:
                     running = False
                 if event.key in keytable:
@@ -63,8 +63,12 @@ def main():
             diff[1] = lst_mv[1] - rel_mv[1]
         
         if diff[0] > max_diff[0] or diff[1] > max_diff[1]:
-            print rel_mv
-            p.sendMouse(velocity=rel_mv)
+            try:
+                p.sendMouse(velocity=rel_mv)
+            except DisconnectException as e:
+                running = False
+                print e
+                break
 
         lst_mv = rel_mv
         
@@ -82,7 +86,9 @@ def main():
         #except Exception as e:
         #    print e
         #   sys.exit()
-    print 1000.0 / (total / float(count))
+    print "Framerate: " + repr(1000.0 / (total / float(count)))
 
 if __name__ == "__main__":
+    #import cProfile as cp
+    #cp.run("main()", "profiler")
     main()

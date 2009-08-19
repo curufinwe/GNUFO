@@ -5,11 +5,14 @@ import collections
 import struct
 
 import StringBuffer
+from NIOBuffer import *
 
 _connected = False
 _conn = socket.socket()
 _conn.setblocking(0)
-_buff = StringBuffer.StringBuffer()
+#_buff = StringBuffer.StringBuffer()
+_buff = NIOBuffer()
+
 """
 This member conntains all rules for packet processing
 The index is the package-header value and every entry must be of the form:
@@ -20,9 +23,7 @@ The index is the package-header value and every entry must be of the form:
               The first parameter of the string-sequence is the value for the
               struct package every following value are the names of the values
               The function must raise a StreamIncomplete Exception if the
-              Networkpacket is incomplete. The Exception should contain the
-              data read. If the Packet is malformed a MalformedPacketException
-              should be thrown
+              Networkpacket is incomplete.
               Otherwise it should return the NetworkPacket.
 }
 """
@@ -38,7 +39,6 @@ def connect(host, port):
     _connected = True
 
 def parse():
-    result = []
     try:
         _buff.append(_conn.recv(buffsize))
     except socket.error as e:
@@ -50,37 +50,45 @@ def parse():
             raise e
     else:
         while True:
-            byte = _buff.read(1)
-            if byte == '':
-                break;
+            position = _buff.getPosition()
+            try:
+                byte = _buff.read(1)
+            except OutOfStreamException as e:
+                _buff.seek(position)
             if byte == magic_number:
-                header = _buff.read(1)
+                try:
+                    header = _buff.read(1)
+                except OutOfStreamException as e:
+                    _buff.seek(position)
                 if header in rules:
                     rule = rules[header]
                     if isinstance(rule['processor'], collections.Callable):
                         try:
-                            result.append(rule['processor'](_buff))
+                            yield rule['processor'](_buff)
                         except StreamIncompleteException as e:
-                            _buff.prepend(byte + header + e.data)
+                            _buff.seek(position)
+                            break
                     elif isinstance(rule['processor'], collections.Sequence):
                         size = struct.calcsize(rule['processor'][0])
-                        packet = _buff.read(size)
-                        if len(packet) < size:
-                            _buff.prepend(byte + header + packet)
+                        try:
+                            packet = _buff.read(size)
+                        except OutOfStreamException as e:
+                            #If this happens the packet is incomplete
+                            _buff.seek(position)
                             break
                         tuple = struct.unpack(rule['processor'][0], packet)
                         packet = NetworkPacket(rule['name'])
                         for i in xrange(len(tuple)):
                             packet.__dict__[rule['processor'][i+1]] = tuple[i]
-                        result.append(packet)
-                        #print packet
+                        yield packet
                 else:
                     _conn.close()
                     raise StreamError("Expected header, but got shit!")
             else:
                 _conn.close()
                 raise StreamError("Expected magic byte, but got shit!")
-    return result
+        _buff.reset()
+        return
 
 def send(stream):
     _conn.setblocking(1)
@@ -102,8 +110,7 @@ class NetworkPacket(object):
         return buff
 
 class StreamIncompleteException(Exception):
-    def __init__(self, data):
-        self.data = data
+    pass
 
 class MalformedPacketException(Exception):
     def __init__(self):
